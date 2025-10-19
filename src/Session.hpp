@@ -16,23 +16,26 @@ class Session : public std::enable_shared_from_this<Session>
 {
 public:
     Session(tcp::socket socket, Server &server);
-    
-    virtual ~Session();
+
+    virtual ~Session() = default;
 
     void start();
 
-    void send_message(const std::string &message);
+    void send_packet(const std::string &serialized_packet);
 
-    tcp::socket& socket() {return socket_;}
+    tcp::socket &socket() { return socket_; }
 
 private:
-    void do_read();
+    void do_read_header();
+    void do_read_body(std::size_t body_size);
     void do_write();
 
-    tcp::socket socket_;
     Server &server_;
-    enum { max_length = 1024 };
-    char data_[max_length];
+    tcp::socket socket_;
+
+    enum { HEADER_SIZE = 4 };
+    char incoming_header_[HEADER_SIZE];
+    std::string incoming_body_;
 
     // Message queue for async writes
     std::deque<std::string> write_msgs_;

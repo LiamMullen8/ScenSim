@@ -10,82 +10,150 @@ Client::~Client()
 {
 }
 
-void Client::send(const std::string &msg)
+void Client::send_command(const std::string &command)
 {
-    boost::asio::post(socket_.get_executor(),
-                      [this, msg]()
-                      {
-                          write_msgs_.push_back(msg);
-                          if (write_msgs_.size() > 1)
-                          {
-                              return;
-                          }
+    // create ptorobuf packet
+    simulation::NetPacket packet;
+    packet.set_type(simulation::NetPacket::CLIENT_INPUT);
+    packet.set_sender_id(std::hash<std::thread::id>{}(std::this_thread::get_id()) % 1000);
 
-                          do_write();
-                      });
+    std::string serialized_msg;
+    packet.SerializeToString(&serialized_msg);
+
+    boost::asio::post(
+        socket_.get_executor(),
+        [this, serialized_msg]()
+        {
+            write_msgs_.push_back(serialized_msg);
+            if (write_msgs_.size() > 1)
+            {
+                return;
+            }
+
+            do_write();
+        });
 }
 
 void Client::do_connect(const tcp::resolver::results_type &endpoints)
 {
-    boost::asio::async_connect(socket_, endpoints,
-                               [this](boost::system::error_code ec, tcp::endpoint)
-                               {
-                                   if (!ec)
-                                   {
-                                       std::cout << "Successfully connected to server." << std::endl;
-                                       do_read();
-                                   }
-                                   else
-                                   {
-                                       std::cerr << "Connection error: " << ec.message() << std::endl;
-                                   }
-                               });
+    boost::asio::async_connect(
+        socket_, endpoints,
+        [this](boost::system::error_code ec, tcp::endpoint)
+        {
+            if (!ec)
+            {
+                std::cout << "Successfully connected to server." << std::endl;
+                do_read_header();
+            }
+            else
+            {
+                std::cerr << "Connection error: " << ec.message() << std::endl;
+            }
+        });
 }
 
-void Client::do_read()
+void Client::do_read_header()
 {
-    boost::asio::async_read_until(socket_,
-                                  boost::asio::dynamic_buffer(read_buffer_), '\n',
-                                  [this](boost::system::error_code ec, std::size_t length)
-                                  {
-                                      if (!ec)
-                                      {
-                                          std::string message(read_buffer_.begin(), read_buffer_.begin() + length);
-                                          read_buffer_.erase(read_buffer_.begin(), read_buffer_.begin() + length);
+    // Read in HEADER_SIZE ( 4 bytes )
+    boost::asio::async_read(
+        socket_,
+        boost::asio::buffer(incoming_header_), HEADER_SIZE,
+        [this](boost::system::error_code ec, std::size_t length)
+        {
+            if (!ec)
+            {
+                uint32_t body_size_int;
+                std::memcpy(&body_size_int, incoming_header_, HEADER_SIZE);
+                uint32_t body_size = boost::asio::detail::socket_ops::network_to_host_long(body_size);
 
-                                          std::cout << "Received: " << message << std::endl;
+                do_read_body(body_size);
+            }
+            else
+            {
+                std::cerr << "Read header error: " << ec.message() << std::endl;
+                io_context_.post([this]()
+                                 { socket_.close(); });
+            }
+        });
+}
 
-                                          do_read();
-                                      }
-                                      else if (ec == boost::asio::error::eof)
-                                      {
-                                          std::cout << "Server closed connection." << std::endl;
-                                      }
-                                      else
-                                      {
-                                          std::cerr << "Read error: " << ec.message() << std::endl;
-                                      }
-                                  });
+void Client::do_read_body(std::size_t body_size)
+{
+    if (body_size == 0)
+    {
+        do_read_header();
+        return;
+    }
+
+    incoming_body_.resize(body_size);
+
+    boost::asio::async_read(
+        socket_,
+        boost::asio::buffer(incoming_body_),
+        [this](boost::system::error_code ec, std::size_t /*length*/)
+        {
+            if (!ec)
+            {
+                simulation::NetPacket packet;
+                if (packet.ParseFromString(incoming_body_))
+                {
+                    // SUCCESS: Handle the incoming structured message from the server
+                    if (packet.type() == simulation::NetPacket::SERVER_STATE)
+                    {
+                        // Example: Print one entity's updated position
+                        if (packet.has_update() && packet.update().entities_size() > 0)
+                        {
+                            const auto &entity = packet.update().entities(0);
+                            std::cout << "SERVER UPDATE: Entity " << entity.id()
+                                      << " moved to (" << entity.x() << ", " << entity.y() << ")\n";
+                        }
+                    }
+                }
+                else
+                {
+                    std::cerr << "Failed to parse incoming protobuf message.\n";
+                }
+
+                do_read_header();
+            }
+            else
+            {
+                std::cerr << "Read header error: " << ec.message() << std::endl;
+                io_context_.post([this]()
+                                 { socket_.close(); });
+            }
+        });
 }
 
 void Client::do_write()
 {
-    boost::asio::async_write(socket_,
-                             boost::asio::buffer(write_msgs_.front()),
-                             [this](boost::system::error_code ec, std::size_t)
-                             {
-                                 if (!ec)
-                                 {
-                                     write_msgs_.pop_front();
-                                     if (!write_msgs_.empty())
-                                     {
-                                         do_write();
-                                     }
-                                 }
-                                 else
-                                 {
-                                     std::cerr << "Write error: " << ec.message() << std::endl;
-                                     socket_.close();
-                                 }
-                             });
+    const std::string &serialized_data = write_msgs_.front();
+
+    uint32_t body_size = static_cast<uint32_t>(serialized_data.size());
+    uint32_t network_size = boost::asio::detail::socket_ops::host_to_network_long(body_size);
+
+    std::vector<boost::asio::const_buffer> buffers;
+    buffers.push_back(boost::asio::buffer(&network_size, HEADER_SIZE)); // 4-byte size
+    buffers.push_back(boost::asio::buffer(serialized_data));            // Protobuf body
+
+    boost::asio::async_write(
+        socket_,
+        buffers,
+        [this](boost::system::error_code ec, std::size_t)
+        {
+            if (!ec)
+            {
+                write_msgs_.pop_front();
+                if (!write_msgs_.empty())
+                {
+                    do_write();
+                }
+            }
+            else
+            {
+                std::cerr << "Write error: " << ec.message() << std::endl;
+                io_context_.post([this]()
+                                 { socket_.close(); });
+            }
+        });
 }

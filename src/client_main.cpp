@@ -11,7 +11,6 @@ int main(int argc, char *argv[])
         if (argc != 3)
         {
             std::cerr << "Usage: ScenClient <host> <port>" << std::endl;
-            std::cerr << "Example: ScenClient 127.0.0.1 8000"<< std::endl;
             return 1;
         }
 
@@ -29,7 +28,7 @@ int main(int argc, char *argv[])
             if(line == "quit") break;
 
             // send input to server
-            c.send(line);
+            c.send_command(line);
         }
 
         io_context.stop();

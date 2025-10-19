@@ -5,32 +5,32 @@
 #include <vector>
 #include <memory>
 #include <thread>
-#include "Session.hpp"
+
+#include "simulation.pb.h"
+
+class Session;
 
 using boost::asio::ip::tcp;
 
-class Server 
+class Server
 {
 public:
-    Server(boost::asio::io_context& io_context, short port);
-    ~Server(){}
+    Server(boost::asio::io_context &io_context, short port);
+    ~Server() {}
 
-    void handle_client_update(const std::string& message);
-    
-    void broadcast_message(const std::string& message);
+    void handle_client_update(const simulation::NetPacket &packet);
+
+    void broadcast_packet(const std::string &serialized_packet);
 
     void remove_session(std::shared_ptr<Session> session_ptr);
-
 
 private:
     void do_accept();
 
-    boost::asio::io_context& io_context_;
+    boost::asio::io_context &io_context_;
     tcp::acceptor acceptor_;
-    
     std::vector<std::shared_ptr<Session>> sessions_;
-    // Mutex to protect the sessions vector from concurrent access
-    std::mutex sessions_mutex_; 
+    std::mutex sessions_mutex_;
 };
 
 #endif // SERVER_HPP

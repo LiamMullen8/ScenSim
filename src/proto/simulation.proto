@@ -1,0 +1,37 @@
+syntax = "proto3";
+
+message NetPacket
+{
+    enum PacketType
+    {
+        CLIENT_INPUT = 0;
+        SERVER_STATE = 1;
+    }
+
+    PacketType type = 1;
+
+    uint32 sender_id = 2;
+
+    oneof payload
+    {
+        MoveCommand move = 3;
+        WorldUpdate update = 4;
+    }
+}
+
+message MoveCommand 
+{
+    float x = 1;
+    float y = 2;
+}
+
+message WorldUpdate 
+{
+    message Entity
+    {
+        uint32 id = 1;
+        float x = 2;
+        float y = 3;
+    }
+    repeated Entity entities = 1; // List of all entities in the scene
+}
