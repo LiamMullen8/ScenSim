@@ -15,15 +15,19 @@ public:
     Client(boost::asio::io_context &io_context, const tcp::resolver::results_type &endpoints);
     ~Client();
 
+    // Public interface for sending message to server
     void send_command(const std::string &command);
 
 private:
 
+    // Establish connection to server
     void do_connect(const tcp::resolver::results_type& endpoints);
 
+    // Read message from server
     void do_read_header();
     void do_read_body(std::size_t body_size);
 
+    // Send message to server
     void do_write();
 
     enum { HEADER_SIZE = 4 };

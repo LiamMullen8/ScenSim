@@ -8,6 +8,7 @@ Server::Server(boost::asio::io_context &io_context, short port)
     do_accept();
 }
 
+
 void Server::broadcast_packet(const std::string &serialized_packet)
 {
     std::lock_guard<std::mutex> lock(sessions_mutex_);
@@ -20,20 +21,39 @@ void Server::broadcast_packet(const std::string &serialized_packet)
     }
 }
 
+
 void Server::handle_client_update(const simulation::NetPacket &packet)
 {
-    std::cout << "Message received from client: " << std::endl;
-
     if (packet.type() == simulation::NetPacket::CLIENT_INPUT)
-    {
+    {   
+        std::cout << "\nMessage received from client id " << packet.sender_id() << ": " << std::endl;
+
+        std::cout << packet.payload() << std::endl;
+
         simulation::NetPacket response;
         response.set_type(simulation::NetPacket::SERVER_STATE);
+        response.set_sender_id(0);
+        response.set_payload(packet.payload());
 
         std::string serialized_response;
         response.SerializeToString(&serialized_response);
         broadcast_packet(serialized_response);
     }
 }
+
+
+void Server::remove_session(std::shared_ptr<Session> session_ptr)
+{
+    std::lock_guard<std::mutex> lock(sessions_mutex_);
+    sessions_.erase(std::remove_if(sessions_.begin(), sessions_.end(),
+                                   [&session_ptr](const std::shared_ptr<Session> &s)
+                                   {
+                                       return s.get() == session_ptr.get();
+                                   }),
+                    sessions_.end());
+    std::cout << "Session successfully removed. Active sessions: " << sessions_.size() << std::endl;
+}
+
 
 void Server::do_accept()
 {
@@ -42,7 +62,7 @@ void Server::do_accept()
         {
             if (!ec)
             {
-                // Create a new session for the client
+                // Create a session for the new client
                 auto new_session = std::make_shared<Session>(std::move(socket), *this);
                 {
                     std::lock_guard<std::mutex> lock(sessions_mutex_);
@@ -59,16 +79,4 @@ void Server::do_accept()
             // Continue listening for more connections
             do_accept();
         });
-}
-
-void Server::remove_session(std::shared_ptr<Session> session_ptr)
-{
-    std::lock_guard<std::mutex> lock(sessions_mutex_);
-    sessions_.erase(std::remove_if(sessions_.begin(), sessions_.end(),
-                                   [&session_ptr](const std::shared_ptr<Session> &s)
-                                   {
-                                       return s.get() == session_ptr.get();
-                                   }),
-                    sessions_.end());
-    std::cout << "Session successfully removed. Active sessions: " << sessions_.size() << std::endl;
 }

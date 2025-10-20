@@ -15,16 +15,22 @@ using boost::asio::ip::tcp;
 class Server
 {
 public:
+
     Server(boost::asio::io_context &io_context, short port);
     ~Server() {}
 
-    void handle_client_update(const simulation::NetPacket &packet);
-
+    // Send message to all clients
     void broadcast_packet(const std::string &serialized_packet);
 
+    // Process message from client
+    void handle_client_update(const simulation::NetPacket &packet);
+ 
+    // Remove session on client disconnect
     void remove_session(std::shared_ptr<Session> session_ptr);
 
 private:
+
+    // Accept connection from new client
     void do_accept();
 
     boost::asio::io_context &io_context_;

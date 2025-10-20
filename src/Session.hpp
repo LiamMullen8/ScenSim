@@ -26,12 +26,16 @@ public:
     tcp::socket &socket() { return socket_; }
 
 private:
+
+    // Read proto message from client
     void do_read_header();
     void do_read_body(std::size_t body_size);
+
+    // Send proto message to client
     void do_write();
 
-    Server &server_;
     tcp::socket socket_;
+    Server &server_;
 
     enum { HEADER_SIZE = 4 };
     char incoming_header_[HEADER_SIZE];

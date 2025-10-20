@@ -12,10 +12,10 @@ Client::~Client()
 
 void Client::send_command(const std::string &command)
 {
-    // create ptorobuf packet
     simulation::NetPacket packet;
     packet.set_type(simulation::NetPacket::CLIENT_INPUT);
     packet.set_sender_id(std::hash<std::thread::id>{}(std::this_thread::get_id()) % 1000);
+    packet.set_payload(command);   
 
     std::string serialized_msg;
     packet.SerializeToString(&serialized_msg);
@@ -54,23 +54,31 @@ void Client::do_connect(const tcp::resolver::results_type &endpoints)
 
 void Client::do_read_header()
 {
-    // Read in HEADER_SIZE ( 4 bytes )
+    // Read in HEADER_SIZE ( 4 bytes ) to get packet body size
     boost::asio::async_read(
         socket_,
-        boost::asio::buffer(incoming_header_), HEADER_SIZE,
-        [this](boost::system::error_code ec, std::size_t length)
+        boost::asio::buffer(incoming_header_, HEADER_SIZE),
+        [this](boost::system::error_code ec, std::size_t /*length*/)
         {
             if (!ec)
             {
                 uint32_t body_size_int;
                 std::memcpy(&body_size_int, incoming_header_, HEADER_SIZE);
-                uint32_t body_size = boost::asio::detail::socket_ops::network_to_host_long(body_size);
+                uint32_t body_size = boost::asio::detail::socket_ops::network_to_host_long(body_size_int);
 
                 do_read_body(body_size);
             }
             else
             {
-                std::cerr << "Read header error: " << ec.message() << std::endl;
+                if(ec == boost::asio::error::eof || ec == boost::asio::error::connection_reset)
+                {
+                    std::cerr << "Server connection closed" << std::endl;
+                }
+                else
+                {
+                    std::cerr << "Read body error: " << ec.message() << std::endl;
+                }
+
                 io_context_.post([this]()
                                  { socket_.close(); });
             }
@@ -97,16 +105,9 @@ void Client::do_read_body(std::size_t body_size)
                 simulation::NetPacket packet;
                 if (packet.ParseFromString(incoming_body_))
                 {
-                    // SUCCESS: Handle the incoming structured message from the server
                     if (packet.type() == simulation::NetPacket::SERVER_STATE)
                     {
-                        // Example: Print one entity's updated position
-                        if (packet.has_update() && packet.update().entities_size() > 0)
-                        {
-                            const auto &entity = packet.update().entities(0);
-                            std::cout << "SERVER UPDATE: Entity " << entity.id()
-                                      << " moved to (" << entity.x() << ", " << entity.y() << ")\n";
-                        }
+                        std::cout << "Message received by Server: " << packet.payload() << std::endl;
                     }
                 }
                 else
@@ -118,7 +119,15 @@ void Client::do_read_body(std::size_t body_size)
             }
             else
             {
-                std::cerr << "Read header error: " << ec.message() << std::endl;
+                if(ec == boost::asio::error::eof || ec == boost::asio::error::connection_reset)
+                {
+                    std::cerr << "Server connection closed" << std::endl;
+                }
+                else
+                {
+                    std::cerr << "Read body error: " << ec.message() << std::endl;
+                }
+
                 io_context_.post([this]()
                                  { socket_.close(); });
             }
@@ -133,8 +142,8 @@ void Client::do_write()
     uint32_t network_size = boost::asio::detail::socket_ops::host_to_network_long(body_size);
 
     std::vector<boost::asio::const_buffer> buffers;
-    buffers.push_back(boost::asio::buffer(&network_size, HEADER_SIZE)); // 4-byte size
-    buffers.push_back(boost::asio::buffer(serialized_data));            // Protobuf body
+    buffers.push_back(boost::asio::buffer(&network_size, HEADER_SIZE));
+    buffers.push_back(boost::asio::buffer(serialized_data));
 
     boost::asio::async_write(
         socket_,

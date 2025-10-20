@@ -61,11 +61,11 @@ target_link_libraries(ScenClient PRIVATE
 )
 
 # Compile settings
-target_compile_features(ScenCore PRIVATE cxx_std_17)
+target_compile_features(ScenCore   PRIVATE cxx_std_17)
 target_compile_features(ScenServer PRIVATE cxx_std_17)
 target_compile_features(ScenClient PRIVATE cxx_std_17)
 
-target_compile_options(ScenCore PRIVATE -Wall -Wextra)
+target_compile_options(ScenCore   PRIVATE -Wall -Wextra)
 target_compile_options(ScenServer PRIVATE -Wall -Wextra)
 target_compile_options(ScenClient PRIVATE -Wall -Wextra)
 

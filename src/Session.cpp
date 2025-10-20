@@ -41,7 +41,7 @@ void Session::do_read_header()
             {
                 uint32_t body_size_int;
                 std::memcpy(&body_size_int, incoming_header_, HEADER_SIZE);
-                uint32_t body_size = boost::asio::detail::socket_ops::network_to_host_long(body_size);
+                uint32_t body_size = boost::asio::detail::socket_ops::network_to_host_long(body_size_int);
 
                 do_read_body(body_size);
             }
@@ -49,10 +49,9 @@ void Session::do_read_header()
             {
                 if (ec == boost::asio::error::eof || ec == boost::asio::error::connection_reset)
                 {
-                    std::cerr << "Session read error: " << ec.message() << std::endl;
+                    std::cerr << "Client disconnected." << std::endl;
                 }
-
-                std::cerr << "Client disconnected." << std::endl;
+                
                 server_.remove_session(self);
             }
         });
@@ -108,9 +107,14 @@ void Session::do_write()
     uint32_t body_size = static_cast<uint32_t>(serialized_data.size());
     uint32_t network_size = boost::asio::detail::socket_ops::host_to_network_long(body_size);
 
+    std::vector<boost::asio::const_buffer> buffers;
+
+    buffers.push_back(boost::asio::buffer(&network_size, HEADER_SIZE));
+    buffers.push_back(boost::asio::buffer(serialized_data));
+
     boost::asio::async_write(
         socket_,
-        boost::asio::buffer(write_msgs_.front()),
+        buffers,
         [this, self](boost::system::error_code ec, std::size_t)
         {
             if (!ec)
