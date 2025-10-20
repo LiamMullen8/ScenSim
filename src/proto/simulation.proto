@@ -1,18 +1,51 @@
 syntax = "proto3";
 package simulation;
 
-message NetPacket
+message Packet
 {
-    enum PacketType
+    enum Source
     {
-        CLIENT_INPUT = 0;
-        SERVER_STATE = 1;
+        CLIENT = 0;
+        SERVER = 1;
     }
 
-    PacketType type = 1;
+    Source source = 1;
 
     uint32 sender_id = 2;
 
-    string payload = 3;
+    oneof type
+    {
+        WorldState world_state = 3;
+        Entity entity = 4;
+    }
+}
 
+message Entity
+{
+    enum Type
+    {
+        FIGHTER   = 0;
+        BOMBER    = 1;
+        SAM       = 2;
+        DRONE     = 3;
+        SATELLITE = 4;
+    }
+
+    enum Action
+    {
+        CREATE = 0;
+        EDIT   = 1;
+        COPY   = 2;
+        DELETE = 3;
+    }
+
+    string name   = 1;
+    uint32 id     = 2;
+    Type   type   = 3;
+    Action action = 4;
+}
+
+message WorldState
+{
+    repeated Entity entities = 1;
 }

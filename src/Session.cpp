@@ -77,7 +77,7 @@ void Session::do_read_body(std::size_t body_size)
             if (!ec)
             {
                 // Deserialize the protobuf message
-                simulation::NetPacket packet;
+                simulation::Packet packet;
                 if (packet.ParseFromString(incoming_body_))
                 {
                     // Delegate the structured packet to the server logic

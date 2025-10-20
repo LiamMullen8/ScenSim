@@ -5,8 +5,6 @@
 #include <deque>
 #include <thread>
 
-#include "simulation.pb.h"
-
 using boost::asio::ip::tcp;
 
 class Client

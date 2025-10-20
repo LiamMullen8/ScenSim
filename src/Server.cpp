@@ -1,8 +1,9 @@
 #include "Server.hpp"
 #include "Session.hpp"
+#include "World.hpp"
 
 Server::Server(boost::asio::io_context &io_context, short port)
-    : io_context_(io_context), acceptor_(io_context, tcp::endpoint(tcp::v4(), port))
+    : io_context_(io_context), acceptor_(io_context, tcp::endpoint(tcp::v4(), port)), world_state_(new World())
 {
     std::cout << "Server listening on port " << port << std::endl;
     do_accept();
@@ -22,18 +23,27 @@ void Server::broadcast_packet(const std::string &serialized_packet)
 }
 
 
-void Server::handle_client_update(const simulation::NetPacket &packet)
+void Server::handle_client_update(const simulation::Packet &packet)
 {
-    if (packet.type() == simulation::NetPacket::CLIENT_INPUT)
+    if (packet.source() == simulation::Packet::CLIENT)
     {   
         std::cout << "\nMessage received from client id " << packet.sender_id() << ": " << std::endl;
 
-        std::cout << packet.payload() << std::endl;
-
-        simulation::NetPacket response;
-        response.set_type(simulation::NetPacket::SERVER_STATE);
+        simulation::Packet response;
+        response.set_source(simulation::Packet::SERVER);
         response.set_sender_id(0);
-        response.set_payload(packet.payload());
+
+        if(packet.has_entity())
+        {
+            if(packet.entity().action() == simulation::Entity_Action_CREATE)
+            {
+                auto new_entity = packet.entity();
+                world_state_->create_entity(new_entity);
+            }
+        }
+
+        auto world_snapshot = response.mutable_world_state();
+        world_state_->populate_world_state(*world_snapshot);
 
         std::string serialized_response;
         response.SerializeToString(&serialized_response);

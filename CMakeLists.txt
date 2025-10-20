@@ -15,6 +15,7 @@ protobuf_generate_cpp(PROTO_SRCS PROTO_HDRS src/proto/simulation.proto)
 # Shared core library
 add_library(ScenCore STATIC
     src/Session.cpp
+    src/World.cpp
     ${PROTO_SRCS}
 )
 

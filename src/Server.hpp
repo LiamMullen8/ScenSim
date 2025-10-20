@@ -9,6 +9,7 @@
 #include "simulation.pb.h"
 
 class Session;
+class World;
 
 using boost::asio::ip::tcp;
 
@@ -23,7 +24,7 @@ public:
     void broadcast_packet(const std::string &serialized_packet);
 
     // Process message from client
-    void handle_client_update(const simulation::NetPacket &packet);
+    void handle_client_update(const simulation::Packet &packet);
  
     // Remove session on client disconnect
     void remove_session(std::shared_ptr<Session> session_ptr);
@@ -37,6 +38,9 @@ private:
     tcp::acceptor acceptor_;
     std::vector<std::shared_ptr<Session>> sessions_;
     std::mutex sessions_mutex_;
+
+    World *world_state_;
+
 };
 
 #endif // SERVER_HPP

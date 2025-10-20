@@ -1,5 +1,7 @@
 #include "Client.hpp"
 
+#include "simulation.pb.h"
+
 Client::Client(boost::asio::io_context &io_context, const tcp::resolver::results_type &endpoints)
     : io_context_(io_context), socket_(io_context)
 {
@@ -12,10 +14,14 @@ Client::~Client()
 
 void Client::send_command(const std::string &command)
 {
-    simulation::NetPacket packet;
-    packet.set_type(simulation::NetPacket::CLIENT_INPUT);
+    simulation::Packet packet;
+    packet.set_source(simulation::Packet::CLIENT);
     packet.set_sender_id(std::hash<std::thread::id>{}(std::this_thread::get_id()) % 1000);
-    packet.set_payload(command);   
+
+    simulation::Entity *entity = packet.mutable_entity();
+    entity->set_action(simulation::Entity_Action_CREATE);
+    entity->set_type(simulation::Entity_Type_FIGHTER);
+    entity->set_name(command);
 
     std::string serialized_msg;
     packet.SerializeToString(&serialized_msg);
@@ -102,12 +108,21 @@ void Client::do_read_body(std::size_t body_size)
         {
             if (!ec)
             {
-                simulation::NetPacket packet;
+                simulation::Packet packet;
                 if (packet.ParseFromString(incoming_body_))
                 {
-                    if (packet.type() == simulation::NetPacket::SERVER_STATE)
+                    if (packet.source() == simulation::Packet::SERVER)
                     {
-                        std::cout << "Message received by Server: " << packet.payload() << std::endl;
+                        std::cout << "Message received from Server: " << std::endl;
+                        if(packet.has_world_state())
+                        {
+                            for(const auto& e : packet.world_state().entities())
+                            {
+                                std::cout << e.name() << std::endl;
+                                std::cout << e.id() << std::endl;
+                                std::cout << simulation::Entity::Type_Name(e.type()) << std::endl;
+                            }
+                        }
                     }
                 }
                 else
