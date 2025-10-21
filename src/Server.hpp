@@ -18,13 +18,13 @@ class Server
 public:
 
     Server(boost::asio::io_context &io_context, short port);
-    ~Server() {}
+    ~Server();
 
     // Send message to all clients
     void broadcast_packet(const std::string &serialized_packet);
 
     // Process message from client
-    void handle_client_update(const simulation::Packet &packet);
+    void handle_client_update(std::shared_ptr<Session> session_ptr, const simulation::Packet &packet);
  
     // Remove session on client disconnect
     void remove_session(std::shared_ptr<Session> session_ptr);
@@ -39,7 +39,10 @@ private:
     std::vector<std::shared_ptr<Session>> sessions_;
     std::mutex sessions_mutex_;
 
-    World *world_state_;
+    std::unique_ptr<World> world_state_;
+
+    std::map<Session*, std::vector<uint32_t>> session_entities_map_;
+
 
 };
 

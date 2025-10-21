@@ -16,12 +16,12 @@ void Client::send_command(const std::string &command)
 {
     simulation::Packet packet;
     packet.set_source(simulation::Packet::CLIENT);
-    packet.set_sender_id(std::hash<std::thread::id>{}(std::this_thread::get_id()) % 1000);
 
     simulation::Entity *entity = packet.mutable_entity();
     entity->set_action(simulation::Entity_Action_CREATE);
     entity->set_type(simulation::Entity_Type_FIGHTER);
     entity->set_name(command);
+    entity->set_id(1);
 
     std::string serialized_msg;
     packet.SerializeToString(&serialized_msg);

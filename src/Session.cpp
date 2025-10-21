@@ -80,8 +80,10 @@ void Session::do_read_body(std::size_t body_size)
                 simulation::Packet packet;
                 if (packet.ParseFromString(incoming_body_))
                 {
-                    // Delegate the structured packet to the server logic
-                    server_.handle_client_update(packet);
+                    if(packet.source() == simulation::Packet::CLIENT)
+                    {
+                        server_.handle_client_update(self, packet);   
+                    }
                 }
                 else
                 {

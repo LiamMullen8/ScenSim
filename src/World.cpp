@@ -1,17 +1,14 @@
 #include "World.hpp"
-// #include "Entity.hpp"
 
-void World::create_entity(simulation::Entity &entity_proto)
+void World::add_entity(simulation::Entity &proto_entity)
 {
     std::lock_guard<std::mutex> lock(state_mutex_);
 
     Entity new_entity;
-    uint32_t new_id = next_entity_id++;
+    new_entity.name = proto_entity.name();
+    new_entity.id = proto_entity.id();
 
-    new_entity.name = entity_proto.name();
-    new_entity.id = new_id;
-
-    entities_[new_id] = new_entity;
+    entities_[new_entity.id] = new_entity;
 }
 
 template <typename ModifiedEntity>
@@ -47,7 +44,7 @@ Entity *World::get_entity(uint32_t id)
     return nullptr;
 }
 
-void World::populate_world_state(simulation::WorldState &state_proto) const
+void World::populate_world_state(simulation::WorldState &proto_state) const
 {
     std::lock_guard<std::mutex> lock(state_mutex_);
 
@@ -55,7 +52,7 @@ void World::populate_world_state(simulation::WorldState &state_proto) const
     {
         const Entity &entity = pair.second;
 
-        simulation::Entity *proto_entity = state_proto.add_entities();
+        simulation::Entity *proto_entity = proto_state.add_entities();
         proto_entity->set_id(entity.id);
         proto_entity->set_name(entity.name);
     }

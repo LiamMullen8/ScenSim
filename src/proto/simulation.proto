@@ -11,8 +11,6 @@ message Packet
 
     Source source = 1;
 
-    uint32 sender_id = 2;
-
     oneof type
     {
         WorldState world_state = 3;

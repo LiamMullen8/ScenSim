@@ -21,7 +21,7 @@ public:
     World() = default;
     ~World() = default;
 
-    void create_entity(simulation::Entity& entity_proto);
+    void add_entity(simulation::Entity& proto_entity);
     
     template<typename ModifiedEntity>
     void edit_entity(uint32_t id, ModifiedEntity modified_entity);
@@ -30,7 +30,7 @@ public:
 
     Entity* get_entity(uint32_t id);
 
-    void populate_world_state(simulation::WorldState& state_proto) const;
+    void populate_world_state(simulation::WorldState& proto_state) const;
 
 private:
     std::map<uint32_t, Entity> entities_;
