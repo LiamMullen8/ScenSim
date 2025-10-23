@@ -23,6 +23,9 @@ public:
     // Send message to all clients
     void broadcast_packet(const std::string &serialized_packet);
 
+    // Send message to specific client
+    void unicast_packet(std::shared_ptr<Session> session_ptr, const std::string &serialized_packet);
+
     // Process message from client
     void handle_client_update(std::shared_ptr<Session> session_ptr, const simulation::Packet &packet);
  

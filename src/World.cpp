@@ -1,25 +1,31 @@
 #include "World.hpp"
 
-void World::add_entity(simulation::Entity &proto_entity)
+uint32_t World::add_entity(simulation::Entity &proto_entity)
 {
     std::lock_guard<std::mutex> lock(state_mutex_);
+
+    uint32_t new_id = next_entity_id++;
 
     Entity new_entity;
     new_entity.name = proto_entity.name();
-    new_entity.id = proto_entity.id();
+    new_entity.id = new_id;
 
-    entities_[new_entity.id] = new_entity;
+    entities_[new_id] = new_entity;
+
+    return new_id;
 }
 
-template <typename ModifiedEntity>
-void World::edit_entity(uint32_t id, ModifiedEntity modified_entity)
+void World::edit_entity(simulation::Entity &proto_entity)
 {
     std::lock_guard<std::mutex> lock(state_mutex_);
 
-    auto it = entities_.find(id);
+    auto it = entities_.find(proto_entity.id());
     if (it != entities_.end())
     {
-        modified_entity(it->second);
+        // Update entity with fields from proto entity
+        it->second.name = proto_entity.name();
+        it->second.type = static_cast<Entity::Type>(proto_entity.type());
+        // etc...
     }
 }
 
@@ -32,15 +38,33 @@ void World::remove_entity(uint32_t id)
     }
 }
 
-Entity *World::get_entity(uint32_t id)
+Entity *World::get_entity_by_id(const uint32_t id)
 {
     std::lock_guard<std::mutex> lock(state_mutex_);
+
+    Entity *entity = nullptr;
 
     auto it = entities_.find(id);
     if (it != entities_.end())
     {
+        entity = &(it->second);
+    }
+
+    return entity;
+}
+
+Entity *World::get_entity_by_name(const std::string &name)
+{
+    std::lock_guard<std::mutex> lock(state_mutex_);
+
+    auto it = std::find_if(entities_.begin(), entities_.end(),
+                           [name](const std::pair<uint32_t, Entity> &pair)
+                           { return pair.second.name == name; });
+    if (it != entities_.end())
+    {
         return &it->second;
     }
+
     return nullptr;
 }
 

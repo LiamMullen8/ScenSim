@@ -21,7 +21,6 @@ void Client::send_command(const std::string &command)
     entity->set_action(simulation::Entity_Action_CREATE);
     entity->set_type(simulation::Entity_Type_FIGHTER);
     entity->set_name(command);
-    entity->set_id(1);
 
     std::string serialized_msg;
     packet.SerializeToString(&serialized_msg);
@@ -76,7 +75,7 @@ void Client::do_read_header()
             }
             else
             {
-                if(ec == boost::asio::error::eof || ec == boost::asio::error::connection_reset)
+                if (ec == boost::asio::error::eof || ec == boost::asio::error::connection_reset)
                 {
                     std::cerr << "Server connection closed" << std::endl;
                 }
@@ -108,43 +107,57 @@ void Client::do_read_body(std::size_t body_size)
         {
             if (!ec)
             {
+                std::cout << "Message received from Server: " << std::endl;
                 simulation::Packet packet;
                 if (packet.ParseFromString(incoming_body_))
                 {
                     if (packet.source() == simulation::Packet::SERVER)
                     {
-                        std::cout << "Message received from Server: " << std::endl;
-                        if(packet.has_world_state())
+                        switch (packet.type_case())
                         {
-                            for(const auto& e : packet.world_state().entities())
+                        case simulation::Packet::kWorldState:
+                        {
+                            for (const auto &e : packet.world_state().entities())
                             {
                                 std::cout << e.name() << std::endl;
                                 std::cout << e.id() << std::endl;
                                 std::cout << simulation::Entity::Type_Name(e.type()) << std::endl;
                             }
+                            break;
+                        }
+                        case simulation::Packet::kEntity:
+                        {
+                            if (packet.entity().action() == simulation::Entity_Action_ACK)
+                            {
+                                std::cout << packet.entity().name() << std::endl;
+                                std::cout << packet.entity().id() << std::endl;
+                                std::cout << simulation::Entity::Type_Name(packet.entity().type()) << std::endl;
+                            }
+                            break;
+                        }
                         }
                     }
+                    else
+                    {
+                        std::cerr << "Failed to parse incoming protobuf message.\n";
+                    }
+
+                    do_read_header();
                 }
                 else
                 {
-                    std::cerr << "Failed to parse incoming protobuf message.\n";
-                }
+                    if (ec == boost::asio::error::eof || ec == boost::asio::error::connection_reset)
+                    {
+                        std::cerr << "Server connection closed" << std::endl;
+                    }
+                    else
+                    {
+                        std::cerr << "Read body error: " << ec.message() << std::endl;
+                    }
 
-                do_read_header();
-            }
-            else
-            {
-                if(ec == boost::asio::error::eof || ec == boost::asio::error::connection_reset)
-                {
-                    std::cerr << "Server connection closed" << std::endl;
+                    io_context_.post([this]()
+                                     { socket_.close(); });
                 }
-                else
-                {
-                    std::cerr << "Read body error: " << ec.message() << std::endl;
-                }
-
-                io_context_.post([this]()
-                                 { socket_.close(); });
             }
         });
 }

@@ -35,6 +35,8 @@ message Entity
         EDIT   = 1;
         COPY   = 2;
         DELETE = 3;
+        ACK    = 4;
+        NACK   = 5;
     }
 
     string name   = 1;
