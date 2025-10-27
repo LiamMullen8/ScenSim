@@ -1,6 +1,20 @@
 syntax = "proto3";
 package simulation;
 
+message Vector3
+{
+    float x = 1;
+    float y = 2;
+    float z = 3;
+}
+
+message Orientation
+{
+    float psi   = 1;
+    float theta = 2;
+    float phi   = 3;
+}
+
 message Packet
 {
     enum Source
@@ -16,6 +30,11 @@ message Packet
         WorldState world_state = 3;
         Entity entity = 4;
     }
+}
+
+message WorldState
+{
+    repeated Entity entities = 1;
 }
 
 message Entity
@@ -42,10 +61,10 @@ message Entity
     string name   = 1;
     uint32 id     = 2;
     Type   type   = 3;
-    Action action = 4;
-}
+    Action action = 4; 
 
-message WorldState
-{
-    repeated Entity entities = 1;
+    Vector3 position = 5;
+    Vector3 velocity = 6;
+    Orientation orientation = 7;
+
 }

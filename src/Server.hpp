@@ -13,7 +13,7 @@ class World;
 
 using boost::asio::ip::tcp;
 
-class Server
+class Server : public std::enable_shared_from_this<Server>
 {
 public:
 
@@ -32,6 +32,10 @@ public:
     // Remove session on client disconnect
     void remove_session(std::shared_ptr<Session> session_ptr);
 
+    void broadcast_world_state();
+
+    void start_broadcast_loop();
+
 private:
 
     // Accept connection from new client
@@ -41,6 +45,8 @@ private:
     tcp::acceptor acceptor_;
     std::vector<std::shared_ptr<Session>> sessions_;
     std::mutex sessions_mutex_;
+
+    boost::asio::steady_timer timer_;
 
     std::unique_ptr<World> world_state_;
 

@@ -1,6 +1,5 @@
 #include "Client.hpp"
-
-#include "simulation.pb.h"
+#include "utils/MessageUtilities.hpp"
 
 Client::Client(boost::asio::io_context &io_context, const tcp::resolver::results_type &endpoints)
     : io_context_(io_context), socket_(io_context)
@@ -18,9 +17,24 @@ void Client::send_command(const std::string &command)
     packet.set_source(simulation::Packet::CLIENT);
 
     simulation::Entity *entity = packet.mutable_entity();
+    entity->set_name(command);
     entity->set_action(simulation::Entity_Action_CREATE);
     entity->set_type(simulation::Entity_Type_FIGHTER);
-    entity->set_name(command);
+
+    simulation::Vector3 *proto_position = entity->mutable_position();
+    proto_position->set_x(0);
+    proto_position->set_y(0);
+    proto_position->set_z(0);
+
+    simulation::Vector3 *proto_velocity = entity->mutable_velocity();
+    proto_velocity->set_x(0);
+    proto_velocity->set_y(0);
+    proto_velocity->set_z(0);
+
+    simulation::Orientation *proto_orient = entity->mutable_orientation();
+    proto_orient->set_psi(0);
+    proto_orient->set_theta(0);
+    proto_orient->set_phi(0);
 
     std::string serialized_msg;
     packet.SerializeToString(&serialized_msg);
@@ -117,21 +131,39 @@ void Client::do_read_body(std::size_t body_size)
                         {
                         case simulation::Packet::kWorldState:
                         {
-                            for (const auto &e : packet.world_state().entities())
+                            std::lock_guard<std::mutex> lock(entities_mutex_);
+
+                            for(auto &e : packet.world_state().entities())
                             {
-                                std::cout << e.name() << std::endl;
-                                std::cout << e.id() << std::endl;
-                                std::cout << simulation::Entity::Type_Name(e.type()) << std::endl;
+                                // Entities for this client only
+                                if(entities_.count(e.id()))
+                                {
+                                    MessageUtilities::FromProto(&e, entities_[e.id()]);
+                                }
                             }
+
                             break;
                         }
                         case simulation::Packet::kEntity:
                         {
                             if (packet.entity().action() == simulation::Entity_Action_ACK)
                             {
-                                std::cout << packet.entity().name() << std::endl;
-                                std::cout << packet.entity().id() << std::endl;
+                                // std::cout << packet.entity().name() << std::endl;
+                                // std::cout << packet.entity().id() << std::endl;
+                                // std::cout << packet.entity().position().x() << std::endl;
+                                // std::cout << packet.entity().position().y() << std::endl;
+                                // std::cout << packet.entity().position().z() << std::endl;
+                                // std::cout << packet.entity().velocity().x() << std::endl;
+                                // std::cout << packet.entity().velocity().y() << std::endl;
+                                // std::cout << packet.entity().velocity().z() << std::endl;
+                                // std::cout << packet.entity().orientation().psi() << std::endl;
+                                // std::cout << packet.entity().orientation().theta() << std::endl;
+                                // std::cout << packet.entity().orientation().phi() << std::endl;
+
                                 std::cout << simulation::Entity::Type_Name(packet.entity().type()) << std::endl;
+
+                                std::lock_guard<std::mutex> lock(entities_mutex_);
+                                MessageUtilities::FromProto(&(packet.entity()), entities_[packet.entity().id()]);
                             }
                             break;
                         }

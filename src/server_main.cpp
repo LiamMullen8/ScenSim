@@ -11,8 +11,9 @@ int main()
         std::cout << "Using " << thread_count << " worker threads." << std::endl;
 
         boost::asio::io_context io_context;
-        Server server(io_context, 12345); // Listen on port 12345
-
+        std::shared_ptr<Server> server = std::make_shared<Server>(io_context, 12345); // Listen on port 12345
+        server->start_broadcast_loop();
+        
         std::vector<std::thread> workers;
 
         for (uint32_t i = 0; i < thread_count; ++i)

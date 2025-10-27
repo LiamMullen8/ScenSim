@@ -1,31 +1,25 @@
 #include "World.hpp"
+#include "utils/MessageUtilities.hpp"
 
-uint32_t World::add_entity(simulation::Entity &proto_entity)
+uint32_t World::add_entity(world::Entity &new_world_entity)
 {
     std::lock_guard<std::mutex> lock(state_mutex_);
 
     uint32_t new_id = next_entity_id++;
 
-    Entity new_entity;
-    new_entity.name = proto_entity.name();
-    new_entity.id = new_id;
-
-    entities_[new_id] = new_entity;
+    entities_[new_id] = new_world_entity;
 
     return new_id;
 }
 
-void World::edit_entity(simulation::Entity &proto_entity)
+void World::edit_entity(world::Entity &world_entity)
 {
     std::lock_guard<std::mutex> lock(state_mutex_);
 
-    auto it = entities_.find(proto_entity.id());
+    auto it = entities_.find(world_entity.id);
     if (it != entities_.end())
     {
-        // Update entity with fields from proto entity
-        it->second.name = proto_entity.name();
-        it->second.type = static_cast<Entity::Type>(proto_entity.type());
-        // etc...
+        it->second = world_entity;
     }
 }
 
@@ -38,11 +32,11 @@ void World::remove_entity(uint32_t id)
     }
 }
 
-Entity *World::get_entity_by_id(const uint32_t id)
+world::Entity* World::get_entity_by_id(const uint32_t id)
 {
     std::lock_guard<std::mutex> lock(state_mutex_);
 
-    Entity *entity = nullptr;
+    world::Entity *entity = nullptr;
 
     auto it = entities_.find(id);
     if (it != entities_.end())
@@ -53,12 +47,12 @@ Entity *World::get_entity_by_id(const uint32_t id)
     return entity;
 }
 
-Entity *World::get_entity_by_name(const std::string &name)
+world::Entity* World::get_entity_by_name(const std::string &name)
 {
     std::lock_guard<std::mutex> lock(state_mutex_);
 
     auto it = std::find_if(entities_.begin(), entities_.end(),
-                           [name](const std::pair<uint32_t, Entity> &pair)
+                           [name](const std::pair<uint32_t, world::Entity> &pair)
                            { return pair.second.name == name; });
     if (it != entities_.end())
     {
@@ -74,10 +68,7 @@ void World::populate_world_state(simulation::WorldState &proto_state) const
 
     for (const auto &pair : entities_)
     {
-        const Entity &entity = pair.second;
-
-        simulation::Entity *proto_entity = proto_state.add_entities();
-        proto_entity->set_id(entity.id);
-        proto_entity->set_name(entity.name);
+        simulation::Entity *proto_entity = proto_state.add_entities();        
+        MessageUtilities::ToProto(&pair.second, proto_entity);
     }
 }

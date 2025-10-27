@@ -4,6 +4,9 @@
 #include <string>
 #include <deque>
 #include <thread>
+#include <map>
+#include "World.hpp"
+#include "simulation.pb.h"
 
 using boost::asio::ip::tcp;
 
@@ -36,4 +39,7 @@ private:
     tcp::socket socket_;
     std::deque<std::string> write_msgs_;
     std::string read_buffer_;
+
+    std::map<uint32_t, world::Entity> entities_;
+    mutable std::mutex entities_mutex_; // Mutex to protect local_entities_
 };

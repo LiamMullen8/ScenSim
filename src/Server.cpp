@@ -1,9 +1,16 @@
 #include "Server.hpp"
 #include "Session.hpp"
 #include "World.hpp"
+#include <iostream>
+#include <algorithm>
+#include <chrono>
+#include "utils/MessageUtilities.hpp"
 
-Server::Server(boost::asio::io_context &io_context, short port)
-    : io_context_(io_context), acceptor_(io_context, tcp::endpoint(tcp::v4(), port)), world_state_(new World())
+Server::Server(boost::asio::io_context &io_context, short port) :
+    io_context_(io_context),
+    acceptor_(io_context, tcp::endpoint(tcp::v4(), port)),
+    timer_(io_context),
+    world_state_(new World())
 {
     std::cout << "Server listening on port " << port << std::endl;
     do_accept();
@@ -34,6 +41,46 @@ void Server::unicast_packet(std::shared_ptr<Session> session_ptr, const std::str
     }
 }
 
+void Server::start_broadcast_loop()
+{
+    auto self = shared_from_this();
+
+    timer_.expires_from_now(std::chrono::milliseconds(33));
+
+    timer_.async_wait(
+        [this, self](boost::system::error_code ec)
+        {
+            if (!ec)
+            {
+                broadcast_world_state();
+                start_broadcast_loop();
+            }
+            else if (ec == boost::asio::error::operation_aborted)
+            {
+                std::cerr << "Broadcast timer error: " << ec.message() << std::endl;
+            }
+        });
+}
+
+void Server::broadcast_world_state()
+{
+    simulation::Packet packet;
+    packet.set_source(simulation::Packet_Source_SERVER);
+
+    simulation::WorldState* proto_state = packet.mutable_world_state();
+    world_state_->populate_world_state(*proto_state);
+
+    std::string serialized_packet;
+    if(packet.SerializeToString(&serialized_packet))
+    {
+        broadcast_packet(serialized_packet);
+    }
+    else
+    {
+        std::cerr << "Failed to serialize world state" << std::endl;
+    }
+}
+
 void Server::handle_client_update(std::shared_ptr<Session> session_ptr, const simulation::Packet &packet)
 {
     // Ensure Session exists for client
@@ -61,17 +108,18 @@ void Server::handle_client_update(std::shared_ptr<Session> session_ptr, const si
             else
             {
                 // Add to World
-                uint32_t new_id = world_state_->add_entity(proto_entity);
+                world::Entity entity;
+                MessageUtilities::FromProto(new_proto_entity, entity);
+
+                uint32_t new_id = world_state_->add_entity(entity);
 
                 // Add to session->entities map
                 it->second.push_back(new_id);
 
                 // Send ACK to client
-                Entity *world_entity = world_state_->get_entity_by_id(new_id);
-                new_proto_entity->set_name(world_entity->name);
-                new_proto_entity->set_id(world_entity->id);
-                new_proto_entity->set_type(static_cast<simulation::Entity::Type>(world_entity->type));
-                
+                world::Entity *world_entity = world_state_->get_entity_by_id(new_id);
+                MessageUtilities::ToProto(world_entity, new_proto_entity);
+
                 new_proto_entity->set_action(simulation::Entity_Action_ACK);
             }
             break;
@@ -80,7 +128,18 @@ void Server::handle_client_update(std::shared_ptr<Session> session_ptr, const si
         {
             if (session_entity != it->second.end())
             {
-                world_state_->edit_entity(proto_entity);
+                world::Entity entity;
+                MessageUtilities::FromProto(new_proto_entity, entity);
+
+                world_state_->edit_entity(entity);
+
+                // Send ACK to client
+                world::Entity *world_entity = world_state_->get_entity_by_id(entity.id);
+                
+                simulation::Entity* new_proto_entity;
+                MessageUtilities::ToProto(world_entity, new_proto_entity);
+
+                new_proto_entity->set_action(simulation::Entity_Action_ACK);
             }
             else
             {
